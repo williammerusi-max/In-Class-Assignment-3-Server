@@ -1,4 +1,5 @@
-import type { UserRole } from "./db/schema.js";
+import type { questions, UserRole } from "./db/schema.js";
+
 
 export type AuthUser = {
   id: number;
@@ -11,4 +12,21 @@ declare global {
       user?: AuthUser;
     }
   }
+}
+
+
+export type Question = {
+    id: number,
+    quizId: number,
+    questionText: string,
+    options: Option[]
+    correctOption:number
+}
+
+export type QuestionDB = typeof questions.$inferSelect; //removing options for the scoreanswer func
+
+export type Option = {
+    id: number,
+    questionId: number,
+    text: string
 }

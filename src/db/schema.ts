@@ -1,3 +1,59 @@
+import { mysqlTable, int, varchar, mysqlEnum } from "drizzle-orm/mysql-core";
+
+export const user = mysqlTable("user", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  username: varchar("username", { length: 45 }).notNull(),
+  password: varchar("password", { length: 255 }).notNull(),
+  role: mysqlEnum("role", ["student", "teacher"]).notNull(),
+});
+
+export const quizzes = mysqlTable("quizzes", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  title: varchar("title", { length: 45 }).notNull(),
+  description: varchar("description", { length: 255 }).notNull(),
+});
+
+export const questions = mysqlTable("questions", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  quizId: int("quizId").notNull().references(() => quizzes.id),
+  questionText: varchar("questionText", { length: 255 }).notNull(),
+  correctOption: int("correctOption").notNull(), // Stores the index (0-3)
+});
+
+export const options = mysqlTable("options", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  questionId: int("questionId").notNull().references(() => questions.id),
+  text: varchar("text", { length: 255 }).notNull(),
+});
+
+export const quizAssignments = mysqlTable("quiz_assignments", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  quizId: int("quizId").notNull().references(() => quizzes.id),
+  studentId: int("studentId").notNull().references(() => user.id),
+});
+
+export const quizHistory = mysqlTable("quiz_history", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  quizId: int("quizId").notNull().references(() => quizzes.id),
+  studentId: int("studentId").notNull().references(() => user.id),
+  score: int("score").notNull(),
+  attempts: int("attempts").notNull(),
+});
+
+export type UserRole = "student" | "teacher";
+
+
+
+
+
+
+
+
+
+/* Not using this stuff:
+
+
+
 import {
   boolean,
   timestamp,
@@ -110,4 +166,4 @@ export type Question = typeof questions.$inferSelect;
 export type AnswerOption = typeof options.$inferSelect;
 
 export type UserRole = "STUDENT" | "TEACHER";
-export type QuestionType = "MULTIPLE_CHOICE" | "SHORT_ANSWER";
+export type QuestionType = "MULTIPLE_CHOICE" | "SHORT_ANSWER"; */

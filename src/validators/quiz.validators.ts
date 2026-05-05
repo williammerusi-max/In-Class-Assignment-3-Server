@@ -5,7 +5,7 @@ export const quizSchema = z.object({
   description: z.string().min(1).max(255)
 });
 
-const multipleChoiceQuestionSchema = z.object({
+/*const multipleChoiceQuestionSchema = z.object({
   questionText: z.string().min(1).max(255),
   questionType: z.literal("MULTIPLE_CHOICE"),
   answerOptions: z.array(z.object({
@@ -22,12 +22,15 @@ const shortAnswerQuestionSchema = z.object({
   questionType: z.literal("SHORT_ANSWER"),
   correctAnswer: z.string().min(1).max(255),
   answerOptions: z.undefined().optional()
-});
+});*/
 
-export const createQuestionSchema = z.discriminatedUnion("questionType", [
-  multipleChoiceQuestionSchema,
-  shortAnswerQuestionSchema
-]);
+export const createQuestionSchema = z.object({
+  questionText: z.string().min(1).max(255),
+  Options: z.array(z.object({
+    text: z.string().min(1).max(255),
+  })).length(4),
+  correctOption: z.number()
+})
 
 export const assignmentSchema = z.object({
   quizId: z.number().int().positive(),

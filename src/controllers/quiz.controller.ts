@@ -1,11 +1,12 @@
 import type { RequestHandler } from "express";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { accounts, options, questions, quizAssignments, quizHistory, quizzes, studentAnswers, type Question, type AnswerOption } from "../db/schema.js";
+import { user, options, questions, quizAssignments, quizHistory, quizzes} from "../db/schema.js";
+import type { QuestionDB, Option } from "../types.js";
 import { assignmentSchema, createQuestionSchema, quizSchema, submitAttemptSchema } from "../validators/quiz.validators.js";
 import { AppError } from "../utils/app-error.js";
 
-const getIdParam = (value: string | undefined, label: string): number => {
+const getIdParam = (value: string | string[] | undefined, label: string): number => {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) throw new AppError(`Invalid ${label}`, 400);
   return id;
@@ -16,17 +17,26 @@ const getUserId = (req: Parameters<RequestHandler>[0]): number => {
   return req.user.id;
 };
 
-const getQuestionOptions = async (questionId: number): Promise<AnswerOption[]> => {
-  return db.select().from(options).where(eq(options.questionId, questionId));
+//helper function more or less
+const getQuestionOptions = async (questionId: number): Promise<Option[]> => {
+  return db.select().from(options).where(eq(options.questionId, questionId)).orderBy(options.id);
 };
 
-const scoreAnswer = async (question: Question, answer: { selectedOptionId?: number; answerText?: string }): Promise<boolean> => {
-  if (question.questionType === "MULTIPLE_CHOICE") {
-    if (!answer.selectedOptionId) return false;
-    const selected = await db.select().from(options).where(eq(options.id, answer.selectedOptionId)).limit(1);
-    return selected[0]?.questionId === question.id && selected[0].isCorrect;
-  }
-  return answer.answerText?.trim().toLowerCase() === question.correctAnswer?.trim().toLowerCase();
+const scoreAnswer = async (question: QuestionDB, answer: { selectedOptionId?: number;}): Promise<boolean> => {
+  if (!answer.selectedOptionId) return false;
+
+  const allOptions = await getQuestionOptions(question.id)
+  // Find the correct option based on the index stored in the question
+
+ // const correctOption = getQuestionOptions(question.correctOption);
+  const correctOption = allOptions[question.correctOption]
+  //  Compare the ID of the correct record to the ID the student selected
+  
+  if (!correctOption) return false;
+
+  return correctOption.id === answer.selectedOptionId; //maybe this will work?
+ 
+  
 };
 
 export const getQuizzes: RequestHandler = async (_req, res, next) => {
@@ -73,7 +83,7 @@ export const updateQuiz: RequestHandler = async (req, res, next) => {
   try {
     const quizId = getIdParam(req.params.id, "quiz id");
     const data = quizSchema.parse(req.body);
-    await db.update(quizzes).set({ ...data, updatedAt: new Date() }).where(eq(quizzes.id, quizId));
+    await db.update(quizzes).set({ ...data}).where(eq(quizzes.id, quizId));
     res.json({ id: quizId, ...data });
   } catch (error) {
     next(error);
@@ -93,22 +103,21 @@ export const addQuestion: RequestHandler = async (req, res, next) => {
   try {
     const quizId = getIdParam(req.params.quizId, "quiz id");
     const data = createQuestionSchema.parse(req.body);
+    if (data.correctOption === undefined) {
+    throw new AppError("You must select a correct answer", 400);
+    }
     const inserted = await db.insert(questions).values({
       quizId,
       questionText: data.questionText,
-      questionType: data.questionType,
-      correctAnswer: data.questionType === "SHORT_ANSWER" ? data.correctAnswer : null
+      correctOption: data.correctOption,
     }).$returningId();
     const questionId = inserted[0]?.id;
     if (!questionId) throw new AppError("Could not create question", 500);
 
-    if (data.questionType === "MULTIPLE_CHOICE") {
-      await db.insert(options).values(data.answerOptions.map((option) => ({
+      await db.insert(options).values(data.Options.map((option) => ({
         questionId,
         text: option.text,
-        isCorrect: option.isCorrect
       })));
-    }
 
     res.status(201).json({ id: questionId, ...data, quizId });
   } catch (error) {
@@ -122,15 +131,12 @@ export const updateQuestion: RequestHandler = async (req, res, next) => {
     const data = createQuestionSchema.parse(req.body);
     await db.update(questions).set({
       questionText: data.questionText,
-      questionType: data.questionType,
-      correctAnswer: data.questionType === "SHORT_ANSWER" ? data.correctAnswer : null,
-      correctOption: null
+      correctOption: data.correctOption,
     }).where(eq(questions.id, questionId));
 
     await db.delete(options).where(eq(options.questionId, questionId));
-    if (data.questionType === "MULTIPLE_CHOICE") {
-      await db.insert(options).values(data.answerOptions.map((option) => ({ questionId, text: option.text, isCorrect: option.isCorrect })));
-    }
+    await db.insert(options).values(data.Options.map((option) => ({ questionId, text: option.text, })));
+  
 
     res.json({ id: questionId, ...data });
   } catch (error) {
@@ -150,8 +156,8 @@ export const deleteQuestion: RequestHandler = async (req, res, next) => {
 export const assignQuiz: RequestHandler = async (req, res, next) => {
   try {
     const data = assignmentSchema.parse(req.body);
-    const studentRows = await db.select().from(accounts).where(eq(accounts.id, data.studentId)).limit(1);
-    if (!studentRows[0] || studentRows[0].isTeacher) throw new AppError("Student not found", 404);
+    const studentRows = await db.select().from(user).where(eq(user.id, data.studentId)).limit(1);
+    if (!studentRows[0] || studentRows[0].role !== "student") throw new AppError("Student not found", 404);
     await db.insert(quizAssignments).values(data);
     res.status(201).json(data);
   } catch (error) {
@@ -222,8 +228,8 @@ export const getMyAttempts: RequestHandler = async (req, res, next) => {
 export const getQuizScores: RequestHandler = async (req, res, next) => {
   try {
     const quizId = getIdParam(req.params.quizId, "quiz id");
-    const rows = await db.select({ attempt: quizHistory, student: accounts }).from(quizHistory)
-      .innerJoin(accounts, eq(quizHistory.studentId, accounts.id))
+    const rows = await db.select({ attempt: quizHistory, student: user }).from(quizHistory)
+      .innerJoin(user, eq(quizHistory.studentId, user.id))
       .where(eq(quizHistory.quizId, quizId));
     res.json(rows);
   } catch (error) {
