@@ -22,7 +22,7 @@ export const questions = mysqlTable("questions", {
 
 export const options = mysqlTable("options", {
   id: int("id").autoincrement().primaryKey().notNull(),
-  questionId: int("questionId").notNull().references(() => questions.id),
+  questionId: int("questionId").notNull().references(() => questions.id), 
   text: varchar("text", { length: 255 }).notNull(),
 });
 

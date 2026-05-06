@@ -4,14 +4,14 @@ import type { UserRole } from "../db/schema.js";
 import { AppError } from "../utils/app-error.js";
 
 type JwtPayload = {
-  userId: number;
+  id: number;
   role: UserRole;
 };
 
 const isJwtPayload = (value: unknown): value is JwtPayload => {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  return typeof candidate.userId === "number" && (candidate.role === "STUDENT" || candidate.role === "TEACHER");
+  return typeof candidate.id === "number" && (candidate.role === "student" || candidate.role === "teacher");
 };
 
 export const requireAuth: RequestHandler = (req, _res, next) => {
@@ -33,7 +33,7 @@ export const requireAuth: RequestHandler = (req, _res, next) => {
       next(new AppError("Invalid token payload", 401));
       return;
     }
-    req.user = { id: decoded.userId, role: decoded.role };
+    req.user = { id: decoded.id, role: decoded.role };
     next();
   } catch {
     next(new AppError("Invalid or expired token", 401));

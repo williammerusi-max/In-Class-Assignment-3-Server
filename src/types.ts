@@ -30,3 +30,10 @@ export type Option = {
     questionId: number,
     text: string
 }
+
+
+export interface User {
+  id: number;
+  username: string;
+  password: Buffer;
+}

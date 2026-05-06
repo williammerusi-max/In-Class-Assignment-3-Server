@@ -9,10 +9,10 @@ import { AppError } from "../utils/app-error.js";
 
 
 
-const signToken = (userId: number, role: UserRole): string => {
+const signToken = (id: number, role: UserRole): string => {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new AppError("JWT secret is not configured", 500);
-  return jwt.sign({ userId, role }, secret, { expiresIn: "1d" });
+  return jwt.sign({ id, role }, secret, { expiresIn: "1d" });
 };
 
 export const register: RequestHandler = async (req, res, next) => {
@@ -48,8 +48,9 @@ export const login: RequestHandler = async (req, res, next) => {
     if (!validPassword) throw new AppError("Invalid username or password", 401);
 
     const role = dbuser.role;
-    res.json({ id: user.id, username: user.username, role, token: signToken(dbuser.id, role) });
+    res.json({ id: dbuser.id, username: dbuser.username, role, token: signToken(dbuser.id, role) });
   } catch (error) {
+    console.error("Debug login error:", error)
     next(error);
   }
 };
